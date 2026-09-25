@@ -9,13 +9,10 @@
   let settings = null;
   let on = false;
 
-  const needsRuler = (s) => s.showRules || s.lineSpacing > 0 || s.font !== 'page';
-
   function apply() {
     const wanted = !!(host && settings.enabledSites[host]);
     if (wanted) {
-      if (needsRuler(settings)) RP.ruler.enable(settings);
-      else RP.ruler.disable();
+      RP.ruler.enable(settings);
       if (on) RP.pencil.update(settings);
       else RP.pencil.enable(settings);
     } else if (on) {

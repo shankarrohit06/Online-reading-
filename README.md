@@ -6,6 +6,8 @@ A Chrome extension that makes reading online feel like reading on paper with a p
   follow each row without drifting.
 - **The pencil**: the word under your mouse pops out slightly larger (125% by default) with a soft
   highlight, marking your place the way a pencil tip would. The rest of the page never shifts.
+- **Room to grow**: while it's on, words and lines get a little extra space, sized to your pencil
+  size, so the enlarged word never covers any other letter.
 - **Keyboard reading**: step through the text word by word or line by line without touching the mouse.
 
 It is off everywhere until you switch it on for a site. After that, the site remembers the setting.
@@ -40,8 +42,8 @@ clashes with something, change it at `chrome://extensions/shortcuts` (the popup 
 - **Highlight**: yellow, green, blue, pink, or any custom color.
 - **Ruled lines**: on or off. The color can match the page's text (works on dark sites) or be a custom
   color.
-- **Line spacing**: the page's own spacing, or 1.5×, 1.8× or 2×. Extra space also stops the enlarged
-  word from covering the lines above and below it.
+- **Line spacing**: the page's own spacing, or 1.5×, 1.8× or 2×. (Lines are always spaced at least
+  enough for the pencil size you chose.)
 - **Reading font**: keep the page's font, or switch to
   [Atkinson Hyperlegible](https://brailleinstitute.org/freefont), OpenDyslexic, or Verdana.
 
@@ -53,7 +55,12 @@ Settings apply instantly to open tabs and sync across your Chrome profile.
   `Intl.Segmenter`. It draws an enlarged copy of that word in an overlay above the page, so the page's
   own text is never modified.
 - `extension/src/content/ruler.js` gives each block of text a notebook-line background, aligned to its
-  line height. Switching off removes everything it added.
+  line height. It also adds the extra space between words and lines that the pencil size needs.
+  Switching off removes everything it added.
+- Before a word grows, the pencil measures the nearest letters on both sides and on the lines above and
+  below, and slides the enlarged word into the free space. A very long word, or one squeezed in by the
+  page (menus, code), grows a little less rather than cover anything. `tests/no-overlap.js` checks this
+  for every word of the test page at every pencil size, font and browser zoom level.
 - `extension/src/content/main.js` turns both on or off per site and applies setting changes live.
 - `extension/src/background.js` handles Alt+R and the ON badge. It also injects the scripts into tabs
   that were already open when the extension was installed.
@@ -65,7 +72,7 @@ viewer.
 
 ```sh
 npm install      # installs Playwright (for tests only)
-npm test         # loads the extension in Chromium and checks the pencil, keys, settings and clean-up
+npm test         # loads the extension in Chromium: pencil, keys, settings, clean-up, and no overlaps
 npm run icons    # re-renders the PNG icons from extension/icons/icon.svg
 ```
 

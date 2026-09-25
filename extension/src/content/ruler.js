@@ -4,6 +4,10 @@
 // blocks) gets the .rp-ruled class plus two custom properties: its line
 // height in px (--rp-lh) and where the rule sits inside each line (--rp-off).
 // content.css turns those into a notebook-paper gradient behind the text.
+//
+// Ruled blocks also get room for the pencil: extra space between words and
+// lines tall enough that a word enlarged to the chosen pencil size never
+// reaches the lines above or below it.
 (() => {
   'use strict';
   const RP = (window.__readingPencil ||= {});
@@ -16,12 +20,14 @@
     '[role="tablist"],[contenteditable=""],[contenteditable="true"],reading-pencil-overlay';
 
   const ruled = new Set();
-  const saved = new WeakMap(); // element -> { fs, lh, hadStyle, hadClass }
+  const roomy = new Set(); // blocks holding other blocks: extra word space only
+  const saved = new WeakMap(); // element -> { fs, lh, ch, hadStyle, hadClass }
   let settings = null;
   let styleEl = null;
   let observer = null;
   let pending = new Set();
   let timer = 0;
+  let measuredFont = null;
 
   function blockOf(el) {
     for (; el && el !== document.documentElement; el = el.parentElement) {
@@ -47,26 +53,68 @@
     for (let n = walker.nextNode(); n; n = walker.nextNode()) visit(n);
   }
 
+  // Height of the text's content area (ascender to descender) in `el`,
+  // which is how tall the pencil's box is before it is scaled.
+  function measureTextHeight(el, fallback) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const i = n.data.search(/\S/);
+      if (i < 0) continue;
+      const range = document.createRange();
+      range.setStart(n, i);
+      range.setEnd(n, i + 1);
+      const h = range.getBoundingClientRect().height;
+      if (h > 0) return h;
+    }
+    return fallback;
+  }
+
   function lineBox(el) {
-    const { fs, lh } = saved.get(el);
-    const target = settings.lineSpacing ? Math.max(lh, fs * settings.lineSpacing) : lh;
+    const { fs, lh, ch } = saved.get(el);
+    // A word scaled by s from its middle reaches (s - 1) * ch / 2 above and
+    // below its own text. The neighbouring lines' text starts (line height -
+    // ch) away, so this line height keeps the enlarged word clear of them.
+    const room = (ch * (1 + settings.growScale)) / 2 + 2;
+    const target = Math.max(lh, room, settings.lineSpacing ? fs * settings.lineSpacing : 0);
     // Just under the descenders of the text, but never past the line box.
     const off = Math.min(target - 1, target / 2 + fs * 0.66);
     return { lh: target, off: Math.max(0, off) };
   }
 
-  function rule(el) {
+  function setLineBox(el) {
     const { lh, off } = lineBox(el);
     el.style.setProperty('--rp-lh', `${lh.toFixed(2)}px`);
     el.style.setProperty('--rp-off', `${off.toFixed(2)}px`);
+  }
+
+  function rule(el) {
+    setLineBox(el);
     el.classList.add('rp-ruled');
     ruled.add(el);
+  }
+
+  // Text height depends on the font, so it is measured with the reading
+  // font already applied; reads all come first, then all the writes.
+  function measure(els) {
+    for (const el of els) {
+      const s = saved.get(el);
+      s.ch = measureTextHeight(el, s.fs * 1.15);
+    }
+    els.forEach(setLineBox);
+    measuredFont = settings.font;
+  }
+
+  function remember(el) {
+    if (!saved.has(el)) {
+      saved.set(el, { hadStyle: el.hasAttribute('style'), hadClass: el.hasAttribute('class') });
+    }
   }
 
   // Puts the element back exactly as the page had it.
   function unrule(el) {
     const s = saved.get(el);
-    el.classList.remove('rp-ruled');
+    el.classList.remove('rp-ruled', 'rp-room');
+    roomy.delete(el);
     el.style.removeProperty('--rp-lh');
     el.style.removeProperty('--rp-off');
     if (s && !s.hadStyle && !el.getAttribute('style')) el.removeAttribute('style');
@@ -84,21 +132,36 @@
         if (all.has(a)) containers.add(a);
       }
     }
-    for (const el of containers) if (ruled.has(el)) unrule(el);
+    for (const el of containers) {
+      if (ruled.has(el)) unrule(el);
+      if (!roomy.has(el)) {
+        remember(el);
+        el.classList.add('rp-room');
+        roomy.add(el);
+      }
+    }
 
     // Read every style first, then write, so layout is computed only once.
     const fresh = [];
     for (const el of candidates) {
       if (containers.has(el) || ruled.has(el)) continue;
+      if (roomy.has(el)) unrule(el); // its inner blocks are gone; rule it instead
       const cs = getComputedStyle(el);
       if (cs.backgroundImage !== 'none') continue; // don't clobber the page's own backgrounds
       const fs = parseFloat(cs.fontSize);
       const lh = cs.lineHeight === 'normal' ? fs * 1.2 : parseFloat(cs.lineHeight);
       if (!fs || !lh) continue;
-      saved.set(el, { fs, lh, hadStyle: el.hasAttribute('style'), hadClass: el.hasAttribute('class') });
+      saved.set(el, {
+        fs,
+        lh,
+        ch: fs * 1.15,
+        hadStyle: el.hasAttribute('style'),
+        hadClass: el.hasAttribute('class'),
+      });
       fresh.push(el);
     }
     fresh.forEach(rule);
+    measure(fresh);
   }
 
   function scan(roots) {
@@ -111,6 +174,7 @@
   function flush() {
     timer = 0;
     for (const el of ruled) if (!el.isConnected) ruled.delete(el);
+    for (const el of roomy) if (!el.isConnected) roomy.delete(el);
     const roots = pending;
     pending = new Set();
     scan(roots);
@@ -127,6 +191,7 @@
         ? 'color-mix(in srgb, currentColor 24%, transparent)'
         : `color-mix(in srgb, ${settings.ruleColor} 75%, transparent)`;
     let css = `:root { --rp-rule: ${color}; }\n`;
+    css += `.rp-ruled, .rp-room { word-spacing: ${RPSettings.wordRoom(settings.growScale)}em !important; }\n`;
     if (!settings.showRules) css += '.rp-ruled { background-image: none !important; }\n';
     const font = RPSettings.FONTS[settings.font];
     if (font) {
@@ -145,6 +210,12 @@
     if (!styleEl.isConnected) document.documentElement.appendChild(styleEl);
   }
 
+  // Web fonts can finish loading after the first measurement.
+  function onFontsLoaded() {
+    if (observer) measure([...ruled]);
+  }
+
+  RP.blockOf = blockOf;
   RP.ruler = {
     get active() {
       return !!observer;
@@ -157,26 +228,25 @@
       scan([document.body]);
       observer = new MutationObserver(onMutations);
       observer.observe(document.body, { childList: true, subtree: true });
+      document.fonts.addEventListener('loadingdone', onFontsLoaded);
     },
 
     update(next) {
       settings = next;
       if (!observer) return;
       writeStyle();
-      for (const el of ruled) {
-        const { lh, off } = lineBox(el);
-        el.style.setProperty('--rp-lh', `${lh.toFixed(2)}px`);
-        el.style.setProperty('--rp-off', `${off.toFixed(2)}px`);
-      }
+      if (settings.font !== measuredFont) measure([...ruled]);
+      else ruled.forEach(setLineBox);
     },
 
     disable() {
       observer?.disconnect();
       observer = null;
+      document.fonts.removeEventListener('loadingdone', onFontsLoaded);
       clearTimeout(timer);
       timer = 0;
       pending.clear();
-      for (const el of [...ruled]) unrule(el);
+      for (const el of [...ruled, ...roomy]) unrule(el);
       styleEl?.remove();
       styleEl = null;
     },

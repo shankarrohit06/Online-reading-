@@ -31,6 +31,19 @@
     verdana: { family: 'Verdana, Geneva, Tahoma, sans-serif', faces: [] },
   });
 
+  // Padding (in em) on each side of the enlarged word's highlight.
+  const PENCIL_PAD_EM = 0.1;
+
+  // Extra space (in em) added between words so that a word up to about
+  // DESIGN_WORD_EM wide can grow to `scale` without touching its neighbours.
+  // Each side must absorb half the growth plus the scaled highlight padding;
+  // a normal space already gives about 0.25em of that.
+  const DESIGN_WORD_EM = 3;
+  function wordRoom(scale) {
+    const needed = ((scale - 1) * DESIGN_WORD_EM) / 2 + PENCIL_PAD_EM * scale - 0.25;
+    return Math.max(0.05, Math.round(needed * 100) / 100);
+  }
+
   // The key a page's on/off state is remembered under, or null if the
   // extension can't run there (chrome://, the Web Store, ...).
   function hostKey(url) {
@@ -69,5 +82,15 @@
     await chrome.storage.sync.set({ ...DEFAULTS, enabledSites });
   }
 
-  root.RPSettings = { DEFAULTS, FONTS, hostKey, load, setSiteEnabled, toggleSite, reset };
+  root.RPSettings = {
+    DEFAULTS,
+    FONTS,
+    PENCIL_PAD_EM,
+    wordRoom,
+    hostKey,
+    load,
+    setSiteEnabled,
+    toggleSite,
+    reset,
+  };
 })(typeof self !== 'undefined' ? self : this);

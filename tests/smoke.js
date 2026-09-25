@@ -91,6 +91,10 @@ const wordCenter = (page, id, word) =>
         assert.ok(!ruled.includes(tag), `${tag} not ruled`);
       const lh = await page.$eval('#p1', (e) => e.style.getPropertyValue('--rp-lh'));
       assert.equal(lh, '27.00px'); // 18px * 1.5
+      const spacing = await page.$eval('#p1', (e) => parseFloat(getComputedStyle(e).wordSpacing));
+      assert.ok(spacing > 3, `extra space between words (${spacing}px)`);
+      const nav = await page.$eval('nav', (e) => getComputedStyle(e).wordSpacing);
+      assert.equal(nav, '0px', 'menus keep their spacing');
     });
 
     await check('hovering a word pops it out at 125%', async () => {
@@ -99,7 +103,7 @@ const wordCenter = (page, id, word) =>
       await page.mouse.move(c.x, c.y, { steps: 3 });
       await page.waitForTimeout(150);
       const o = await overlay(page);
-      assert.equal(o.word, 'pencil');
+      assert.equal(o.word, 'pencil,'); // punctuation travels with its word
       assert.ok(o.on);
       assert.equal(o.transform, 'scale(1.25)');
     });
@@ -113,7 +117,7 @@ const wordCenter = (page, id, word) =>
       assert.equal((await overlay(page)).word, 'keeping');
       await page.keyboard.press('Alt+ArrowLeft');
       await page.waitForTimeout(50);
-      assert.equal((await overlay(page)).word, 'pencil');
+      assert.equal((await overlay(page)).word, 'pencil,');
     });
 
     await check('Alt+Down moves to the line below', async () => {
@@ -135,8 +139,13 @@ const wordCenter = (page, id, word) =>
     await check('settings apply live', async () => {
       await setSettings({ growScale: 1.5, lineSpacing: 2, font: 'atkinson' });
       await page.waitForTimeout(150);
-      assert.equal((await overlay(page)).transform, 'scale(1.5)');
+      const grown = parseFloat(/scale\(([\d.]+)\)/.exec((await overlay(page)).transform)[1]);
+      assert.ok(grown > 1.4 && grown <= 1.5, `grew to ~150% (${grown})`);
       assert.equal(await page.$eval('#p1', (e) => e.style.getPropertyValue('--rp-lh')), '36.00px');
+      await setSettings({ growScale: 2, lineSpacing: 0 });
+      await page.waitForTimeout(150);
+      const lh = parseFloat(await page.$eval('#p1', (e) => e.style.getPropertyValue('--rp-lh')));
+      assert.ok(lh > 27, `lines move apart to make room for a 200% pencil (${lh}px)`);
       const family = await page.$eval('#p1', (e) => getComputedStyle(e).fontFamily);
       assert.match(family, /RP Atkinson Hyperlegible/);
     });

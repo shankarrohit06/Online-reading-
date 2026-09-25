@@ -4,7 +4,7 @@
   "private": true,
   "description": "Chrome extension: ruled lines and a word-magnifying pencil for easier reading online.",
   "scripts": {
-    "test": "node tests/smoke.js",
+    "test": "node tests/smoke.js && node tests/no-overlap.js",
     "icons": "node scripts/make-icons.js"
   },
   "devDependencies": {

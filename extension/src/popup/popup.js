@@ -35,6 +35,7 @@
     $('grow').value = pct;
     $('growValue').textContent = `${pct}%`;
     $('previewWord').style.transform = `scale(${pct / 100})`;
+    $('previewWord').parentElement.style.wordSpacing = `${S.wordRoom(pct / 100)}em`;
   }
   $('grow').addEventListener('input', (e) => renderGrow(+e.target.value));
   // Saved on release; sync storage limits how often it may be written.

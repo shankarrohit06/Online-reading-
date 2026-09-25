@@ -29,6 +29,7 @@
   let mouseDown = false;
   let overEditable = false;
   let goalX = null; // keeps the column steady while moving line to line
+  let currentFontSize = 16;
   let raf = 0;
 
   // ---- Finding words -------------------------------------------------------
@@ -56,15 +57,51 @@
     return r && { node: r.startContainer, offset: r.startOffset };
   }
 
-  // The word in `node` that contains character `offset`, if it is a word
-  // (not whitespace or punctuation).
+  // Grows a word to take in punctuation touching it ("pencil," or "(like"),
+  // and words joined by it ("well-known"), so the pencil never has to squeeze
+  // against a mark glued to its side. Words that simply sit next to each
+  // other without spaces (as in Chinese or Japanese) stay separate.
+  function token(node, start, end) {
+    const text = node.data;
+    const from = Math.max(0, start - 60);
+    const segs = [...segmenter.segment(text.slice(from, Math.min(text.length, end + 60)))].map((g) => ({
+      start: from + g.index,
+      end: from + g.index + g.segment.length,
+      word: g.isWordLike,
+      space: !/\S/.test(g.segment),
+    }));
+    let i = segs.findIndex((g) => g.start === start);
+    if (i < 0) return { node, start, end };
+    let j = i;
+    while (j + 1 < segs.length && !segs[j + 1].space && !(segs[j + 1].word && segs[j].word)) j++;
+    while (i > 0 && !segs[i - 1].space && !(segs[i - 1].word && segs[i].word)) i--;
+    const t = { node, start: segs[i].start, end: segs[j].end };
+    // "well-known" may break across two lines at its hyphen; then each part
+    // gets the pencil on its own.
+    return t.start === start && t.end === end ? t : wraps(t) ? { node, start, end } : t;
+  }
+
+  function wraps(w) {
+    const rects = rangeOf(w).getClientRects();
+    for (const q of rects) if (!sameLine(q, rects[0])) return true;
+    return false;
+  }
+
+  // The word in `node` that contains character `offset`, if there is one
+  // (whitespace and stray punctuation on their own don't count).
   function wordAt(node, offset) {
     const text = node.data;
     if (offset < 0 || offset >= text.length) return null;
     const from = Math.max(0, offset - 80);
     const seg = segmenter.segment(text.slice(from, offset + 80)).containing(offset - from);
-    if (!seg || !seg.isWordLike) return null;
-    return { node, start: from + seg.index, end: from + seg.index + seg.segment.length };
+    if (!seg || !/\S/.test(seg.segment)) return null;
+    const w = token(node, from + seg.index, from + seg.index + seg.segment.length);
+    return hasWord(w) ? w : null;
+  }
+
+  function hasWord(w) {
+    for (const g of segmenter.segment(w.node.data.slice(w.start, w.end))) if (g.isWordLike) return true;
+    return false;
   }
 
   function rangeOf(w) {
@@ -104,7 +141,7 @@
 
   function firstWordIn(node, from = 0) {
     for (const s of segmenter.segment(node.data.slice(from))) {
-      if (s.isWordLike) return { node, start: from + s.index, end: from + s.index + s.segment.length };
+      if (s.isWordLike) return token(node, from + s.index, from + s.index + s.segment.length);
     }
     return null;
   }
@@ -112,9 +149,9 @@
   function lastWordIn(node, to = node.data.length) {
     let last = null;
     for (const s of segmenter.segment(node.data.slice(0, to))) {
-      if (s.isWordLike) last = { node, start: s.index, end: s.index + s.segment.length };
+      if (s.isWordLike) last = s;
     }
-    return last;
+    return last && token(node, last.index, last.index + last.segment.length);
   }
 
   function nextWord(w) {
@@ -248,6 +285,124 @@
     return !!a && !!b && a.node === b.node && a.start === b.start && a.end === b.end;
   }
 
+  // ---- Making room --------------------------------------------------------
+  //
+  // The enlarged word must never cover another letter. Before drawing, look
+  // at the letters around the word: the nearest ones on each side of it on
+  // its own line, and the lines above and below. Slide the enlarged word into
+  // the free space; only if it still can't fit (a very long word, or text
+  // packed tightly by the page) does it grow a little less than asked.
+
+  function sameLine(a, b) {
+    const overlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    return overlap > Math.min(a.height, b.height) * 0.3;
+  }
+
+  function charRect(node, i) {
+    const range = document.createRange();
+    range.setStart(node, i);
+    range.setEnd(node, i + 1);
+    const r = range.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? r : null;
+  }
+
+  // The nearest visible letter before (dir = -1) or after (dir = 1) the
+  // word, if it's on the same line.
+  function neighbour(w, dir, r) {
+    let node = w.node;
+    let i = dir > 0 ? w.end : w.start - 1;
+    let walker = null;
+    for (let scanned = 0; scanned < 400; scanned++) {
+      if (i < 0 || i >= node.data.length) {
+        walker ||= walkerAt(w.node);
+        node = dir > 0 ? walker.nextNode() : walker.previousNode();
+        if (!node) return null;
+        i = dir > 0 ? 0 : node.data.length - 1;
+        continue;
+      }
+      if (/\S/.test(node.data[i])) {
+        const q = charRect(node, i);
+        if (q) return sameLine(q, r) ? q : null;
+      }
+      i += dir;
+    }
+    return null;
+  }
+
+  // Boxes around the text of the lines just above and below the word.
+  function nearbyLines(w, r) {
+    const reach = r.height * 1.5;
+    const near = (q) => q.bottom > r.top - reach && q.top < r.bottom + reach;
+    const out = [];
+    const take = (node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      let any = false;
+      for (const q of range.getClientRects()) {
+        if (!q.width || !q.height || !near(q)) continue;
+        any = true;
+        if (!sameLine(q, r)) out.push(q);
+      }
+      return any;
+    };
+    take(w.node);
+    for (const dir of [-1, 1]) {
+      const walker = walkerAt(w.node);
+      for (let i = 0, misses = 0; i < 60 && misses < 3; i++) {
+        const node = dir > 0 ? walker.nextNode() : walker.previousNode();
+        if (!node) break;
+        misses = take(node) ? 0 : misses + 1;
+      }
+    }
+    return out;
+  }
+
+  function fit(w, r, fontSize) {
+    const want = settings.growScale;
+    const padWanted = fontSize * RPSettings.PENCIL_PAD_EM;
+
+    // Side limits: the neighbouring letters, or a little past the edge of
+    // the text block (into its margin) when the word starts or ends a line.
+    const block = (RP.blockOf?.(w.node.parentElement) || document.body).getBoundingClientRect();
+    let left = Math.max(2, block.left - fontSize);
+    let right = Math.min(innerWidth - 2, block.right + fontSize);
+    for (const dir of [-1, 1]) {
+      const q = neighbour(w, dir, r);
+      if (!q) continue;
+      if (q.left + q.width / 2 < r.left + r.width / 2) left = Math.max(left, q.right + 1);
+      else right = Math.min(right, q.left - 1);
+    }
+    left = Math.min(left, r.left);
+    right = Math.max(right, r.right);
+
+    const place = (scale) => {
+      const room = right - left;
+      let pad = padWanted;
+      if ((r.width + 2 * pad) * scale > room) {
+        scale = Math.max(1, Math.min(scale, room / r.width));
+        pad = Math.max(0, Math.min(padWanted, (room / scale - r.width) / 2));
+      }
+      const half = ((r.width + 2 * pad) * scale) / 2;
+      let center = r.left + r.width / 2;
+      // (A trimmed scale fills the room exactly, give or take rounding.)
+      if (half * 2 <= room + 0.01) center = Math.min(Math.max(center, left + half), right - half);
+      return { scale, pad, center, half };
+    };
+
+    let p = place(want);
+    // Lines above and below: the word grows (scale - 1) * height / 2 up and
+    // down, which must stay clear of their text wherever the box spans.
+    const middle = r.top + r.height / 2;
+    let limit = want;
+    for (const q of nearbyLines(w, r)) {
+      if (q.right <= p.center - p.half || q.left >= p.center + p.half) continue;
+      const gap = q.bottom <= middle ? middle - q.bottom : q.top - middle;
+      limit = Math.min(limit, (2 * gap) / r.height);
+    }
+    if (limit < p.scale) p = place(Math.max(1, limit));
+    return p;
+  }
+
   function show(w, { animate = true } = {}) {
     const r = rectOf(w);
     if (!r || !r.width) return hide();
@@ -256,12 +411,12 @@
     current = w;
     const el = w.node.parentElement;
     const cs = getComputedStyle(el);
-    const pad = parseFloat(cs.fontSize) * 0.14;
-    const scale = settings.growScale;
+    currentFontSize = parseFloat(cs.fontSize);
+    const { scale, pad, center } = fit(w, r, currentFontSize);
     const highlight = `color-mix(in srgb, ${settings.highlightColor} 45%, transparent)`;
     box.textContent = w.node.data.slice(w.start, w.end);
     Object.assign(box.style, {
-      left: `${r.left - pad}px`,
+      left: `${center - r.width / 2 - pad}px`,
       top: `${r.top}px`,
       width: `${r.width + pad * 2}px`,
       height: `${r.height}px`,
@@ -280,7 +435,9 @@
     });
     box.classList.add('on');
     if (animate && changed && !reducedMotion.matches) {
-      box.animate([{ transform: 'scale(1)' }, { transform: `scale(${scale})` }], {
+      // Start exactly over the page's word, then grow into the free space.
+      const dx = r.left + r.width / 2 - center;
+      box.animate([{ transform: `translateX(${dx}px) scale(1)` }, { transform: `scale(${scale})` }], {
         duration: 110,
         easing: 'ease-out',
       });
@@ -315,9 +472,19 @@
     }
     if (mouseDown || overEditable || mouseX < 0) return hide();
     const w = wordAtPoint(mouseX, mouseY);
+    if (!w && nearPencil(mouseX, mouseY)) return; // crossing the gap to the next word
     if (!w) hide();
     else if (!same(w, current)) show(w);
     else show(w, { animate: false }); // same word, but it may have moved (scroll)
+  }
+
+  // Words have extra space between them; keep the pencil where it is while
+  // the pointer crosses that gap instead of flickering off.
+  function nearPencil(x, y) {
+    if (!current || !box?.classList.contains('on')) return false;
+    const b = box.getBoundingClientRect();
+    const reach = currentFontSize * 0.75;
+    return x >= b.left - reach && x <= b.right + reach && y >= b.top && y <= b.bottom;
   }
 
   function schedule() {
