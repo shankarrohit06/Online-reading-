@@ -1,0 +1,13 @@
+{
+  "name": "reading-pencil",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome extension: ruled lines and a word-magnifying pencil for easier reading online.",
+  "scripts": {
+    "test": "node tests/smoke.js",
+    "icons": "node scripts/make-icons.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

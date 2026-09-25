@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Reading Pencil</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="../../icons/icon32.png" alt="" width="24" height="24" />
+      <h1>Reading Pencil</h1>
+    </header>
+
+    <section class="site">
+      <label class="switch-row">
+        <span>
+          <strong id="siteLabel">This site</strong>
+          <small id="siteState">Off</small>
+        </span>
+        <input type="checkbox" id="siteToggle" role="switch" />
+        <span class="switch" aria-hidden="true"></span>
+      </label>
+      <p id="unsupported" class="note" hidden>
+        Chrome doesn't let extensions run on this page. Try it on an article or any regular website.
+      </p>
+    </section>
+
+    <section>
+      <div class="row">
+        <label for="grow">Pencil size</label>
+        <output id="growValue">125%</output>
+      </div>
+      <input type="range" id="grow" min="110" max="200" step="5" />
+      <p class="preview">follow the <span id="previewWord">pencil</span> along</p>
+    </section>
+
+    <section>
+      <div class="row">
+        <span class="label">Highlight</span>
+        <div class="swatches" id="highlightSwatches">
+          <button type="button" data-color="#ffe14d" title="Yellow" style="--c: #ffe14d"></button>
+          <button type="button" data-color="#8ee07a" title="Green" style="--c: #8ee07a"></button>
+          <button type="button" data-color="#7cc4ff" title="Blue" style="--c: #7cc4ff"></button>
+          <button type="button" data-color="#ff9ecf" title="Pink" style="--c: #ff9ecf"></button>
+          <input type="color" id="highlight" title="Custom color" />
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="showRules" /> Ruled lines</label>
+        <div class="rule-color">
+          <select id="ruleMode" aria-label="Line color">
+            <option value="auto">Match text</option>
+            <option value="custom">Custom color</option>
+          </select>
+          <input type="color" id="ruleColor" title="Line color" hidden />
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <span class="label">Line spacing</span>
+      <div class="segmented" id="spacing" role="radiogroup" aria-label="Line spacing">
+        <button type="button" data-value="0">Page</button>
+        <button type="button" data-value="1.5">1.5×</button>
+        <button type="button" data-value="1.8">1.8×</button>
+        <button type="button" data-value="2">2×</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="row">
+        <label for="font">Reading font</label>
+        <select id="font">
+          <option value="page">Page's own font</option>
+          <option value="atkinson">Atkinson Hyperlegible</option>
+          <option value="opendyslexic">OpenDyslexic</option>
+          <option value="verdana">Verdana</option>
+        </select>
+      </div>
+    </section>
+
+    <footer>
+      <dl class="keys">
+        <dt><kbd id="toggleKey">Alt+R</kbd></dt>
+        <dd>on / off for this site</dd>
+        <dt><kbd>Alt</kbd>+<kbd>←</kbd><kbd>→</kbd></dt>
+        <dd>previous / next word</dd>
+        <dt><kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd></dt>
+        <dd>line above / below</dd>
+        <dt><kbd>Esc</kbd></dt>
+        <dd>lift the pencil</dd>
+      </dl>
+      <div class="links">
+        <a href="#" id="shortcuts">Change shortcut</a>
+        <a href="#" id="reset">Reset settings</a>
+      </div>
+    </footer>
+
+    <script src="../shared/settings.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

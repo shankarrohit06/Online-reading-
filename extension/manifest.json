@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Reading Pencil",
+  "version": "1.0.0",
+  "description": "Read online like you do on paper: ruled lines under every line of text and a pencil that gently enlarges the word you're on.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Reading Pencil",
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "permissions": ["storage", "activeTab", "scripting"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "src/shared/settings.js",
+        "src/content/ruler.js",
+        "src/content/pencil.js",
+        "src/content/main.js"
+      ],
+      "css": ["src/content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "toggle-reading-pencil": {
+      "suggested_key": { "default": "Alt+R" },
+      "description": "Turn Reading Pencil on or off for this site"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["fonts/*.woff2"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
