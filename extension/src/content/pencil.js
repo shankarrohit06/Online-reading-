@@ -23,7 +23,8 @@
   let host = null; // overlay element
   let box = null; // the enlarged word inside it
   let current = null; // { node, start, end }
-  let mode = 'mouse'; // who moved the pencil last: 'mouse' | 'keyboard'
+  let mode = 'mouse'; // who moved the pencil last: 'mouse' | 'keyboard' | 'speech'
+  let speaking = false; // while reading aloud, the voice drives the pencil
   let mouseX = -1;
   let mouseY = -1;
   let mouseDown = false;
@@ -465,7 +466,7 @@
   function tick() {
     raf = 0;
     if (!enabled) return;
-    if (mode === 'keyboard') {
+    if (mode !== 'mouse') {
       if (current?.node.isConnected) show(current, { animate: false });
       else hide();
       return;
@@ -492,6 +493,7 @@
   }
 
   function onMouseMove(e) {
+    if (speaking) return;
     // Chrome sends a still "mousemove" after scrolling; don't let that
     // steal the pencil from the keyboard.
     if (mode === 'keyboard' && e.movementX === 0 && e.movementY === 0) return;
@@ -504,6 +506,7 @@
   }
 
   function onMouseDown() {
+    if (speaking) return; // e.g. a click on the read-aloud player
     mouseDown = true;
     hide(); // stay out of the way while selecting text
   }
@@ -573,6 +576,24 @@
       if (enabled && current) show(current, { animate: false });
     },
 
+    // Read-aloud hands the pencil to the voice while it speaks.
+    setSpeaking(on) {
+      speaking = on;
+      if (on) mode = 'speech';
+      else if (mode === 'speech') mode = 'keyboard'; // stay on the last word read
+    },
+
+    // Puts the pencil on the word at `offset` in text node `node`.
+    follow(node, offset) {
+      if (!enabled || !node.isConnected) return;
+      const w = wordAt(node, offset) || wordAt(node, offset - 1);
+      if (!w) return;
+      mode = 'speech';
+      if (same(w, current)) return;
+      scrollIntoReach(w);
+      show(w);
+    },
+
     disable() {
       if (!enabled) return;
       enabled = false;
@@ -581,6 +602,8 @@
       raf = 0;
       current = null;
       goalX = null;
+      speaking = false;
+      mode = 'mouse';
       host?.remove();
       host = box = null;
     },

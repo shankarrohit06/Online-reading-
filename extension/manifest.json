@@ -20,7 +20,7 @@
   "background": {
     "service_worker": "src/background.js"
   },
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "tts"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -28,6 +28,7 @@
         "src/shared/settings.js",
         "src/content/ruler.js",
         "src/content/pencil.js",
+        "src/content/reader.js",
         "src/content/main.js"
       ],
       "css": ["src/content/content.css"],
@@ -36,7 +37,9 @@
   ],
   "commands": {
     "toggle-reading-pencil": {
-      "suggested_key": { "default": "Alt+R" },
+      "suggested_key": {
+        "default": "Alt+R"
+      },
       "description": "Turn Reading Pencil on or off for this site"
     }
   },

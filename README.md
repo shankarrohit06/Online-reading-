@@ -9,6 +9,9 @@ A Chrome extension that makes reading online feel like reading on paper with a p
 - **Room to grow**: while it's on, words and lines get a little extra space, sized to your pencil
   size, so the enlarged word never covers any other letter.
 - **Keyboard reading**: step through the text word by word or line by line without touching the mouse.
+- **Read aloud**: select some text and click the speaker button beside it. Chrome reads from there
+  through the rest of the page while the pencil follows the voice word by word and the current
+  sentence is tinted. A mini player at the bottom pauses, skips sentences, changes speed and stops.
 
 It is off everywhere until you switch it on for a site. After that, the site remembers the setting.
 
@@ -31,6 +34,8 @@ file URLs**.
 | Next / previous word      | **Alt+→** / **Alt+←**                               |
 | Line below / above        | **Alt+↓** / **Alt+↑** (stays in the same column)    |
 | Lift the pencil           | **Esc**                                             |
+| Read aloud                | Select text → click the speaker button              |
+| Stop reading              | **Esc**, or ✕ in the player                         |
 
 The toolbar icon shows an **ON** badge on tabs where it is active. The keyboard keys work only while the
 extension is on for the page. They are ignored inside text boxes, so editing works as normal. If Alt+R
@@ -47,6 +52,10 @@ clashes with something, change it at `chrome://extensions/shortcuts` (the popup 
 - **Reading font**: keep the page's font, or switch to
   [Atkinson Hyperlegible](https://brailleinstitute.org/freefont), OpenDyslexic, or Verdana.
 
+- **Read aloud**: the voice (any voice Chrome has; "online" ones such as Chrome's Google voices send
+  the text to Google to be spoken, the others stay on your computer), the speed from 0.5× to 2×, and
+  a button to test the voice.
+
 Settings apply instantly to open tabs and sync across your Chrome profile.
 
 ## How it works
@@ -61,7 +70,12 @@ Settings apply instantly to open tabs and sync across your Chrome profile.
   below, and slides the enlarged word into the free space. A very long word, or one squeezed in by the
   page (menus, code), grows a little less rather than cover anything. `tests/no-overlap.js` checks this
   for every word of the test page at every pencil size, font and browser zoom level.
-- `extension/src/content/main.js` turns both on or off per site and applies setting changes live.
+- `extension/src/content/reader.js` splits the text from your selection onwards into sentences with
+  `Intl.Segmenter` and sends them one at a time to `chrome.tts` in the background worker. Each word
+  the voice reports moves the pencil; for voices that don't report words, the pencil moves at a pace
+  estimated from the speed. The sentence tint uses the CSS Custom Highlight API, so the page itself
+  is not changed.
+- `extension/src/content/main.js` turns everything on or off per site and applies setting changes live.
 - `extension/src/background.js` handles Alt+R and the ON badge. It also injects the scripts into tabs
   that were already open when the extension was installed.
 
@@ -72,7 +86,8 @@ viewer.
 
 ```sh
 npm install      # installs Playwright (for tests only)
-npm test         # loads the extension in Chromium: pencil, keys, settings, clean-up, and no overlaps
+npm test         # loads the extension in Chromium: pencil, keys, settings, read aloud, clean-up,
+                 # and no overlaps (read aloud uses a stand-in voice, as test machines have none)
 npm run icons    # re-renders the PNG icons from extension/icons/icon.svg
 ```
 

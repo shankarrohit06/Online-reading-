@@ -42,3 +42,55 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 });
+
+// ---- Read aloud ------------------------------------------------------------
+// Pages send one sentence at a time over a port named "rp-tts"; the voice's
+// start/word/end events go back the same way, tagged with the sentence's id.
+
+// The speech engine. Kept on `self` so the automated tests can swap in a fake
+// voice (the test machine has no real ones).
+self.rpSpeech = {
+  speak: (text, options) => chrome.tts.speak(text, options),
+  stop: () => chrome.tts.stop(),
+};
+
+// Match the page's language only when a voice for it is installed.
+async function hasVoiceFor(lang) {
+  const prefix = lang.toLowerCase().split('-')[0];
+  const voices = await chrome.tts.getVoices();
+  return voices.some((v) => v.lang?.toLowerCase().startsWith(prefix));
+}
+
+const RELAYED = new Set(['start', 'word', 'end', 'interrupted', 'cancelled', 'error']);
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'rp-tts') return;
+  let active = null; // id of the sentence this page is speaking
+
+  port.onMessage.addListener(async (msg) => {
+    if (msg.type === 'speak') {
+      active = msg.id;
+      const options = { rate: msg.rate, enqueue: false };
+      if (msg.voiceName) options.voiceName = msg.voiceName;
+      else if (msg.lang && (await hasVoiceFor(msg.lang))) options.lang = msg.lang;
+      if (active !== msg.id) return; // stopped or replaced while looking up voices
+      options.onEvent = (e) => {
+        if (active !== msg.id || !RELAYED.has(e.type)) return;
+        if (e.type !== 'word' && e.type !== 'start') active = null;
+        try {
+          port.postMessage({ type: e.type, id: msg.id, charIndex: e.charIndex, error: e.errorMessage });
+        } catch (_) {
+          // the page went away
+        }
+      };
+      self.rpSpeech.speak(msg.text, options);
+    } else if (msg.type === 'stop') {
+      if (active !== null) self.rpSpeech.stop();
+      active = null;
+    }
+  });
+
+  port.onDisconnect.addListener(() => {
+    if (active !== null) self.rpSpeech.stop();
+  });
+});

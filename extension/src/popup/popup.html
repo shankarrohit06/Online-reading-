@@ -82,6 +82,22 @@
       </div>
     </section>
 
+    <section class="speech">
+      <div class="row">
+        <span class="label">Read aloud</span>
+        <button type="button" id="testVoice" class="text-button">▶ Test voice</button>
+      </div>
+      <select id="voice" aria-label="Voice">
+        <option value="">Default voice for the page</option>
+      </select>
+      <div class="row">
+        <label for="rate">Speed</label>
+        <output id="rateValue">1.0×</output>
+      </div>
+      <input type="range" id="rate" min="50" max="200" step="5" />
+      <p class="note">Select text on a page, then click the <strong>speaker</strong> button beside it.</p>
+    </section>
+
     <footer>
       <dl class="keys">
         <dt><kbd id="toggleKey">Alt+R</kbd></dt>
@@ -91,7 +107,7 @@
         <dt><kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd></dt>
         <dd>line above / below</dd>
         <dt><kbd>Esc</kbd></dt>
-        <dd>lift the pencil</dd>
+        <dd>lift the pencil / stop reading</dd>
       </dl>
       <div class="links">
         <a href="#" id="shortcuts">Change shortcut</a>

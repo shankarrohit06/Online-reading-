@@ -13,9 +13,15 @@
     const wanted = !!(host && settings.enabledSites[host]);
     if (wanted) {
       RP.ruler.enable(settings);
-      if (on) RP.pencil.update(settings);
-      else RP.pencil.enable(settings);
+      if (on) {
+        RP.pencil.update(settings);
+        RP.reader.update(settings);
+      } else {
+        RP.pencil.enable(settings);
+        RP.reader.enable(settings);
+      }
     } else if (on) {
+      RP.reader.disable();
       RP.ruler.disable();
       RP.pencil.disable();
     }
@@ -54,6 +60,7 @@
       } catch (_) {
         // the old extension context is already gone
       }
+      RP.reader?.disable();
       RP.ruler?.disable();
       RP.pencil?.disable();
     },

@@ -96,6 +96,38 @@
   // ---- Font ----
   $('font').addEventListener('change', (e) => save({ font: e.target.value }));
 
+  // ---- Read aloud ----
+  const rateText = (r) => `${r.toFixed(r * 10 === Math.round(r * 10) ? 1 : 2)}×`;
+  function renderSpeech() {
+    $('rate').value = Math.round(settings.speechRate * 100);
+    $('rateValue').textContent = rateText(settings.speechRate);
+    $('voice').value = settings.voiceName;
+    if ($('voice').value !== settings.voiceName) $('voice').value = ''; // voice no longer installed
+  }
+  // Voices for the browser's language first, then the rest; "online" ones
+  // (like Chrome's Google voices) send the text to be spoken remotely.
+  const lang = navigator.language.toLowerCase().split('-')[0];
+  const voices = (await chrome.tts.getVoices()).sort(
+    (a, b) =>
+      (b.lang?.toLowerCase().startsWith(lang) ?? false) - (a.lang?.toLowerCase().startsWith(lang) ?? false) ||
+      (a.voiceName || '').localeCompare(b.voiceName || ''),
+  );
+  for (const v of voices) {
+    if (!v.voiceName) continue;
+    const option = document.createElement('option');
+    option.value = v.voiceName;
+    option.textContent = `${v.voiceName}${v.lang ? ` (${v.lang})` : ''}${v.remote ? ' · online' : ''}`;
+    $('voice').append(option);
+  }
+  $('voice').addEventListener('change', (e) => save({ voiceName: e.target.value }));
+  $('rate').addEventListener('input', (e) => ($('rateValue').textContent = rateText(e.target.value / 100)));
+  $('rate').addEventListener('change', (e) => save({ speechRate: +e.target.value / 100 }));
+  $('testVoice').addEventListener('click', () => {
+    const options = { rate: settings.speechRate };
+    if (settings.voiceName) options.voiceName = settings.voiceName;
+    chrome.tts.speak('This is how Reading Pencil sounds when it reads to you.', options);
+  });
+
   // ---- Footer ----
   const commands = await chrome.commands.getAll();
   const toggle = commands.find((c) => c.name === 'toggle-reading-pencil');
@@ -119,6 +151,7 @@
     renderHighlight(settings.highlightColor);
     renderRules();
     renderSpacing();
+    renderSpeech();
     $('font').value = settings.font;
   }
 

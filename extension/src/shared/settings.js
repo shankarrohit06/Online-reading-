@@ -10,6 +10,8 @@
     ruleColor: 'auto', // 'auto' = match the page's text color, or a hex color
     lineSpacing: 0, // 0 = page default, otherwise a multiple of the font size
     font: 'page', // 'page' | 'atkinson' | 'opendyslexic' | 'verdana'
+    speechRate: 1, // read-aloud speed, 0.5 to 2
+    voiceName: '', // '' = Chrome's default voice for the page's language
   });
 
   const FONTS = Object.freeze({
