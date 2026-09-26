@@ -6,113 +6,144 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
-      <img src="../../icons/icon32.png" alt="" width="24" height="24" />
-      <h1>Reading Pencil</h1>
-    </header>
-
-    <section class="site">
-      <label class="switch-row">
-        <span>
-          <strong id="siteLabel">This site</strong>
-          <small id="siteState">Off</small>
-        </span>
-        <input type="checkbox" id="siteToggle" role="switch" />
-        <span class="switch" aria-hidden="true"></span>
+    <header class="site" id="site">
+      <img src="../../icons/icon48.png" alt="" width="36" height="36" />
+      <label class="site-text" for="siteToggle">
+        <span class="app">Reading Pencil</span>
+        <strong id="siteLabel">This site</strong>
+        <small id="siteState">Off</small>
       </label>
-      <p id="unsupported" class="note" hidden>
-        Chrome doesn't let extensions run on this page. Try it on an article or any regular website.
-      </p>
-    </section>
+      <input type="checkbox" id="siteToggle" role="switch" />
+      <label class="switch" for="siteToggle" aria-hidden="true"></label>
+    </header>
+    <p id="unsupported" class="note warn" hidden>
+      Chrome doesn't let extensions run on this page. Open an article or any other website to use Reading
+      Pencil.
+    </p>
 
-    <section>
-      <div class="row">
-        <label for="grow">Pencil size</label>
-        <output id="growValue">125%</output>
-      </div>
-      <input type="range" id="grow" min="110" max="200" step="5" />
-      <p class="preview">follow the <span id="previewWord">pencil</span> along</p>
-    </section>
-
-    <section>
-      <div class="row">
-        <span class="label">Highlight</span>
-        <div class="swatches" id="highlightSwatches">
-          <button type="button" data-color="#ffe14d" title="Yellow" style="--c: #ffe14d"></button>
-          <button type="button" data-color="#8ee07a" title="Green" style="--c: #8ee07a"></button>
-          <button type="button" data-color="#7cc4ff" title="Blue" style="--c: #7cc4ff"></button>
-          <button type="button" data-color="#ff9ecf" title="Pink" style="--c: #ff9ecf"></button>
-          <input type="color" id="highlight" title="Custom color" />
+    <div class="grid">
+      <section aria-labelledby="pencilHead">
+        <h2 id="pencilHead">Pencil</h2>
+        <div class="row">
+          <label for="grow">Size</label>
+          <output id="growValue" for="grow">125%</output>
         </div>
-      </div>
-    </section>
+        <input type="range" id="grow" min="110" max="200" step="5" />
+        <p class="preview" aria-hidden="true">follow the <span id="previewWord">pencil</span> along</p>
+        <div class="row">
+          <span class="label" id="highlightLabel">Highlight</span>
+          <div class="swatches" id="highlightSwatches" role="group" aria-labelledby="highlightLabel">
+            <button
+              type="button"
+              data-color="#ffe14d"
+              title="Yellow"
+              aria-label="Yellow"
+              style="--c: #ffe14d"
+            ></button>
+            <button
+              type="button"
+              data-color="#8ee07a"
+              title="Green"
+              aria-label="Green"
+              style="--c: #8ee07a"
+            ></button>
+            <button
+              type="button"
+              data-color="#7cc4ff"
+              title="Blue"
+              aria-label="Blue"
+              style="--c: #7cc4ff"
+            ></button>
+            <button
+              type="button"
+              data-color="#ff9ecf"
+              title="Pink"
+              aria-label="Pink"
+              style="--c: #ff9ecf"
+            ></button>
+            <input type="color" id="highlight" title="Any color" aria-label="Any highlight color" />
+          </div>
+        </div>
+      </section>
 
-    <section>
-      <div class="row">
-        <label class="check"><input type="checkbox" id="showRules" /> Ruled lines</label>
-        <div class="rule-color">
-          <select id="ruleMode" aria-label="Line color">
-            <option value="auto">Match text</option>
-            <option value="custom">Custom color</option>
+      <section aria-labelledby="pageHead">
+        <h2 id="pageHead">Page</h2>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="showRules" /> Ruled lines</label>
+          <div class="inline">
+            <select id="ruleMode" aria-label="Line color">
+              <option value="auto">Match text</option>
+              <option value="custom">Custom color</option>
+            </select>
+            <input type="color" id="ruleColor" title="Line color" aria-label="Line color" hidden />
+          </div>
+        </div>
+        <div class="row">
+          <span class="label" id="spacingLabel">Line spacing</span>
+          <div class="segmented" id="spacing" role="radiogroup" aria-labelledby="spacingLabel">
+            <button type="button" role="radio" data-value="0" title="The page's own spacing">Auto</button>
+            <button type="button" role="radio" data-value="1.5">1.5×</button>
+            <button type="button" role="radio" data-value="1.8">1.8×</button>
+            <button type="button" role="radio" data-value="2">2×</button>
+          </div>
+        </div>
+        <div class="row">
+          <label for="font">Font</label>
+          <select id="font">
+            <option value="page">Page's own</option>
+            <option value="atkinson">Atkinson Hyperlegible</option>
+            <option value="opendyslexic">OpenDyslexic</option>
+            <option value="verdana">Verdana</option>
           </select>
-          <input type="color" id="ruleColor" title="Line color" hidden />
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section>
-      <span class="label">Line spacing</span>
-      <div class="segmented" id="spacing" role="radiogroup" aria-label="Line spacing">
-        <button type="button" data-value="0">Page</button>
-        <button type="button" data-value="1.5">1.5×</button>
-        <button type="button" data-value="1.8">1.8×</button>
-        <button type="button" data-value="2">2×</button>
-      </div>
-    </section>
-
-    <section>
-      <div class="row">
-        <label for="font">Reading font</label>
-        <select id="font">
-          <option value="page">Page's own font</option>
-          <option value="atkinson">Atkinson Hyperlegible</option>
-          <option value="opendyslexic">OpenDyslexic</option>
-          <option value="verdana">Verdana</option>
-        </select>
-      </div>
-    </section>
-
-    <section class="speech">
-      <div class="row">
-        <span class="label">Read aloud</span>
-        <button type="button" id="testVoice" class="text-button">▶ Test voice</button>
-      </div>
-      <select id="voice" aria-label="Voice">
-        <option value="">Default voice for the page</option>
-      </select>
-      <div class="row">
-        <label for="rate">Speed</label>
-        <output id="rateValue">1.0×</output>
-      </div>
-      <input type="range" id="rate" min="50" max="200" step="5" />
-      <p class="note">Select text on a page, then click the <strong>speaker</strong> button beside it.</p>
-    </section>
+      <section class="speech" aria-labelledby="speechHead">
+        <div class="row span">
+          <h2 id="speechHead">Read aloud</h2>
+          <button type="button" id="testVoice" class="text-button" aria-live="polite">▶ Test</button>
+        </div>
+        <div class="col">
+          <select id="voice" aria-label="Voice">
+            <option value="">Default voice for the page</option>
+          </select>
+          <p class="note" id="voiceNote"></p>
+        </div>
+        <div class="col">
+          <div class="row">
+            <label for="rate">Speed</label>
+            <output id="rateValue" for="rate">1.0×</output>
+          </div>
+          <input type="range" id="rate" min="50" max="200" step="5" />
+        </div>
+        <p class="note span">
+          Select text and click the <strong>speaker</strong>, or press <kbd>Alt</kbd>+<kbd>S</kbd>. While it
+          reads, click any word to jump there.
+        </p>
+      </section>
+    </div>
 
     <footer>
-      <dl class="keys">
-        <dt><kbd id="toggleKey">Alt+R</kbd></dt>
-        <dd>on / off for this site</dd>
-        <dt><kbd>Alt</kbd>+<kbd>←</kbd><kbd>→</kbd></dt>
-        <dd>previous / next word</dd>
-        <dt><kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd></dt>
-        <dd>line above / below</dd>
-        <dt><kbd>Esc</kbd></dt>
-        <dd>lift the pencil / stop reading</dd>
-      </dl>
-      <div class="links">
+      <details id="keysBox">
+        <summary>Keyboard shortcuts</summary>
+        <dl class="keys">
+          <dt><kbd id="toggleKey">Alt+R</kbd></dt>
+          <dd>On / off for this site</dd>
+          <dt><kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd></dt>
+          <dd>Previous / next word (sentence while reading)</dd>
+          <dt><kbd>Alt</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt>
+          <dd>Line above / below</dd>
+          <dt><kbd>Alt</kbd> <kbd>S</kbd></dt>
+          <dd>Read aloud from the selection or pencil; pause / resume</dd>
+          <dt><kbd>Esc</kbd></dt>
+          <dd>Lift the pencil, stop reading</dd>
+        </dl>
+      </details>
+      <nav class="links" aria-label="More">
+        <a href="#" id="guide">Guide &amp; practice</a>
         <a href="#" id="shortcuts">Change shortcut</a>
         <a href="#" id="reset">Reset settings</a>
-      </div>
+      </nav>
     </footer>
 
     <script src="../shared/settings.js"></script>

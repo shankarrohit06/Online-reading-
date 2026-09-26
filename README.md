@@ -9,11 +9,17 @@ A Chrome extension that makes reading online feel like reading on paper with a p
 - **Room to grow**: while it's on, words and lines get a little extra space, sized to your pencil
   size, so the enlarged word never covers any other letter.
 - **Keyboard reading**: step through the text word by word or line by line without touching the mouse.
-- **Read aloud**: select some text and click the speaker button beside it. Chrome reads from there
-  through the rest of the page while the pencil follows the voice word by word and the current
-  sentence is tinted. A mini player at the bottom pauses, skips sentences, changes speed and stops.
+- **Read aloud**: select some text and click the speaker button beside it (or press **Alt+S**).
+  Chrome reads from there through the rest of the article, skipping menus, sidebars, footers and
+  footnote markers, while the pencil follows the voice word by word and the current sentence is
+  tinted. Click any word to jump there. A mini player at the bottom pauses, skips sentences, changes
+  speed and stops.
 
-It is off everywhere until you switch it on for a site. After that, the site remembers the setting.
+It is off everywhere until you switch it on for a site; a short note on the page confirms each switch.
+After that, the site remembers the setting (`www.example.com` and `example.com` count as one site).
+
+A guide with a practice article and every voice to listen to opens when you first install it, and any
+time from **Guide & practice** in the popup.
 
 ## Install
 
@@ -34,8 +40,16 @@ file URLs**.
 | Next / previous word      | **Alt+→** / **Alt+←**                               |
 | Line below / above        | **Alt+↓** / **Alt+↑** (stays in the same column)    |
 | Lift the pencil           | **Esc**                                             |
-| Read aloud                | Select text → click the speaker button              |
+| Read aloud                | Select text → click the speaker, or **Alt+S**       |
+| Read from the pencil      | Put the pencil on a word, then **Alt+S**            |
+| Pause / resume            | **Alt+S**, or the middle player button              |
+| Previous / next sentence  | **Alt+←** / **Alt+→** while reading                 |
+| Jump to a word            | Click it while reading                              |
 | Stop reading              | **Esc**, or ✕ in the player                         |
+
+While reading, the page scrolls to keep the voice's word in view. Scroll away to look at something
+else and it stops following; **Back to reading** in the player (or scrolling back to the word) picks it
+up again.
 
 The toolbar icon shows an **ON** badge on tabs where it is active. The keyboard keys work only while the
 extension is on for the page. They are ignored inside text boxes, so editing works as normal. If Alt+R
@@ -51,10 +65,10 @@ clashes with something, change it at `chrome://extensions/shortcuts` (the popup 
   enough for the pencil size you chose.)
 - **Reading font**: keep the page's font, or switch to
   [Atkinson Hyperlegible](https://brailleinstitute.org/freefont), OpenDyslexic, or Verdana.
-
-- **Read aloud**: the voice (any voice Chrome has; "online" ones such as Chrome's Google voices send
-  the text to Google to be spoken, the others stay on your computer), the speed from 0.5× to 2×, and
-  a button to test the voice.
+- **Read aloud**: the voice (any voice Chrome has, grouped by language; "online" ones such as
+  Chrome's Google voices send the text to Google to be spoken, the others stay on your computer), the
+  speed from 0.5× to 2×, and a button to test the voice. The popup says whether the pencil can follow
+  the chosen voice word by word or at an estimated pace.
 
 Settings apply instantly to open tabs and sync across your Chrome profile.
 
@@ -75,7 +89,10 @@ Settings apply instantly to open tabs and sync across your Chrome profile.
   the voice reports moves the pencil; for voices that don't report words, the pencil moves at a pace
   estimated from the speed. The sentence tint uses the CSS Custom Highlight API, so the page itself
   is not changed.
-- `extension/src/content/main.js` turns everything on or off per site and applies setting changes live.
+- `extension/src/content/main.js` turns everything on or off per site, applies setting changes live,
+  and removes itself cleanly if the extension is updated while the page is open. After an update, open
+  tabs on switched-on sites get the new version automatically.
+- `extension/src/welcome/` is the guide and practice page.
 - `extension/src/background.js` handles Alt+R and the ON badge. It also injects the scripts into tabs
   that were already open when the extension was installed.
 

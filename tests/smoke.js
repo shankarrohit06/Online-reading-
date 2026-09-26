@@ -84,6 +84,20 @@ const wordCenter = (page, id, word) =>
     await setSettings({ enabledSites: { '127.0.0.1': true } });
     await page.waitForSelector('.rp-ruled');
 
+    await check('switching on says so on the page', async () => {
+      const text = await page.evaluate(() =>
+        document.querySelector('reading-pencil-toast')?.shadowRoot.textContent.trim(),
+      );
+      assert.match(text, /Reading Pencil is on for 127\.0\.0\.1/);
+    });
+
+    await check('www.example.com and example.com count as one site', async () => {
+      const keys = await sw.evaluate(() =>
+        ['https://www.example.com/a', 'http://example.com/b', 'chrome://settings'].map(RPSettings.hostKey),
+      );
+      assert.deepEqual(keys, ['example.com', 'example.com', null]);
+    });
+
     await check('rules leaf text blocks and skips nav, code and textareas', async () => {
       const ruled = await page.$$eval('.rp-ruled', (els) => els.map((e) => e.id || e.tagName));
       for (const id of ['p1', 'p2', 'p3', 'inner', 'H1', 'LI']) assert.ok(ruled.includes(id), `${id} ruled`);
@@ -168,13 +182,41 @@ const wordCenter = (page, id, word) =>
       await setSettings({ enabledSites: {} });
       await page.waitForTimeout(200);
       await page.$eval('#ta', (e) => e.blur());
+      // The "Reading Pencil is off" note fades after a moment.
+      assert.equal(await page.locator('reading-pencil-toast').count(), 1, 'says it was switched off');
+      await page.waitForFunction(() => !document.querySelector('reading-pencil-toast'), null, {
+        timeout: 4000,
+      });
       const now = await page.evaluate(() => document.documentElement.outerHTML);
       assert.equal(now, pristine);
     });
 
+    await check('the guide page has a live practice article', async () => {
+      const guide = await ctx.newPage();
+      await guide.goto(`chrome-extension://${extId}/src/welcome/welcome.html`);
+      await guide.waitForSelector('.practice .rp-ruled');
+      assert.equal(await guide.locator('.hero .rp-ruled').count(), 0, 'only the article gets lines');
+      await guide.locator('.practice').scrollIntoViewIfNeeded();
+      const c = await guide.evaluate(() => {
+        const n = document.querySelector('.practice p').firstChild;
+        const r = document.createRange();
+        r.setStart(n, n.data.indexOf('printed'));
+        r.setEnd(n, n.data.indexOf('printed') + 7);
+        const b = r.getBoundingClientRect();
+        return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+      });
+      await guide.mouse.move(c.x - 20, c.y);
+      await guide.mouse.move(c.x, c.y, { steps: 3 });
+      await guide.waitForTimeout(150);
+      assert.equal((await overlay(guide)).word, 'printed');
+      assert.equal(await guide.locator('#noVoices').isVisible(), true, 'explains when there are no voices');
+      await guide.screenshot({ path: path.join(OUT, 'guide.png'), fullPage: true });
+      await guide.close();
+    });
+
     await check('popup renders', async () => {
       const popup = await ctx.newPage();
-      await popup.setViewportSize({ width: 320, height: 640 });
+      await popup.setViewportSize({ width: 580, height: 600 });
       await popup.goto(`chrome-extension://${extId}/src/popup/popup.html`);
       await popup.waitForSelector('#grow');
       assert.equal(await popup.$eval('#growValue', (e) => e.textContent), '125%');

@@ -25,6 +25,22 @@ function setBadge(tabId, on) {
   chrome.action.setBadgeBackgroundColor({ tabId, color: '#2f6fb0' });
 }
 
+chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+  if (reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/welcome/welcome.html') });
+    return;
+  }
+  if (reason !== 'update') return;
+  await RPSettings.migrate();
+  // Pages that were already open still run the old copy of the extension,
+  // which can no longer talk to it. Give tabs on switched-on sites a fresh one.
+  const { enabledSites = {} } = await chrome.storage.sync.get('enabledSites');
+  for (const tab of await chrome.tabs.query({})) {
+    const host = RPSettings.hostKey(tab.url || '');
+    if (host && enabledSites[host]) ensureInjected(tab.id);
+  }
+});
+
 chrome.commands.onCommand.addListener(async (command, tab) => {
   if (command !== 'toggle-reading-pencil') return;
   if (!tab) [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });

@@ -225,9 +225,11 @@
       settings = next;
       if (observer) return this.update(next);
       writeStyle();
-      scan([document.body]);
+      // A page can limit the lines to one part of it (the practice page does).
+      const scope = document.querySelector('[data-rp-scope]') || document.body;
+      scan([scope]);
       observer = new MutationObserver(onMutations);
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(scope, { childList: true, subtree: true });
       document.fonts.addEventListener('loadingdone', onFontsLoaded);
     },
 

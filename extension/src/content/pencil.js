@@ -11,7 +11,7 @@
 
   const SKIP =
     'script,style,noscript,template,textarea,input,select,option,' +
-    '[contenteditable=""],[contenteditable="true"],reading-pencil-overlay';
+    '[contenteditable=""],[contenteditable="true"],reading-pencil-overlay,reading-pencil-reader,reading-pencil-toast';
   const EDITABLE = 'input,textarea,select,[contenteditable=""],[contenteditable="true"]';
   const MAX_STEPS = 4000; // cap on words scanned when looking for the next line
 
@@ -279,7 +279,12 @@
       const [r, g, b, a = '1'] = m[1].split(/[,/\s]+/).filter(Boolean);
       if (parseFloat(a) > 0.5) return `rgb(${r}, ${g}, ${b})`;
     }
-    return '#ffffff';
+    // No background set anywhere: the browser's own page color, which is dark
+    // on sites that opt into dark mode through color-scheme.
+    const scheme = getComputedStyle(document.documentElement).colorScheme;
+    const dark =
+      scheme === 'dark' || (scheme.includes('dark') && matchMedia('(prefers-color-scheme: dark)').matches);
+    return dark ? '#121212' : '#ffffff';
   }
 
   function same(a, b) {
@@ -430,6 +435,8 @@
       fontStretch: cs.fontStretch,
       letterSpacing: cs.letterSpacing,
       textTransform: cs.textTransform,
+      textDecoration: cs.textDecoration, // keeps links underlined
+      fontFeatureSettings: cs.fontFeatureSettings,
       color: cs.color,
       background: `linear-gradient(${highlight}, ${highlight}), ${backgroundBehind(el)}`,
       transform: `scale(${scale})`,
@@ -450,15 +457,25 @@
     box?.classList.remove('on');
   }
 
-  function scrollIntoReach(w) {
-    const margin = Math.min(80, innerHeight / 6);
+  // Keeps the word on screen, with room for the read-aloud player below.
+  function scrollIntoReach(w, smooth = false) {
+    const top = Math.min(80, innerHeight / 6);
+    const bottom = Math.min(120, innerHeight / 4);
     let r = rectOf(w);
-    if (!r) return;
-    if (r.top < margin || r.bottom > innerHeight - margin) {
-      window.scrollBy({ top: r.top - innerHeight * 0.35, behavior: 'instant' });
+    if (!r) return false;
+    const behavior = smooth && !reducedMotion.matches ? 'smooth' : 'instant';
+    let scrolled = false;
+    if (r.top < top || r.bottom > innerHeight - bottom) {
+      window.scrollBy({ top: r.top - innerHeight * 0.35, behavior });
+      if (behavior === 'smooth') return true;
+      scrolled = true;
       r = rectOf(w);
     }
-    if (r && !visibleRect(r)) w.node.parentElement.scrollIntoView({ block: 'center', behavior: 'instant' });
+    if (r && !visibleRect(r)) {
+      w.node.parentElement.scrollIntoView({ block: 'center', behavior });
+      scrolled = true;
+    }
+    return scrolled;
   }
 
   // ---- Input ---------------------------------------------------------------
@@ -528,6 +545,7 @@
       hide();
       return;
     }
+    if (speaking) return; // read-aloud has its own keys while it plays
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
     if (isEditable(document.activeElement)) return; // Alt+arrows mean something in text fields
@@ -583,15 +601,31 @@
       else if (mode === 'speech') mode = 'keyboard'; // stay on the last word read
     },
 
-    // Puts the pencil on the word at `offset` in text node `node`.
-    follow(node, offset) {
-      if (!enabled || !node.isConnected) return;
+    // Puts the pencil on the word at `offset` in text node `node`, scrolling
+    // it into view unless `scroll` is false. Reports whether the word is on
+    // screen and whether the page was scrolled to show it.
+    follow(node, offset, { scroll = true } = {}) {
+      if (!enabled || !node.isConnected) return { visible: false, scrolled: false };
       const w = wordAt(node, offset) || wordAt(node, offset - 1);
-      if (!w) return;
+      if (!w) return { visible: false, scrolled: false };
       mode = 'speech';
-      if (same(w, current)) return;
-      scrollIntoReach(w);
-      show(w);
+      let scrolled = false;
+      if (!same(w, current)) {
+        if (scroll) scrolled = scrollIntoReach(w, true);
+        show(w);
+      }
+      return { visible: visibleRect(rectOf(w)), scrolled };
+    },
+
+    // Where the pencil is, for starting to read from it.
+    position() {
+      return current?.node.isConnected ? { node: current.node, offset: current.start } : null;
+    },
+
+    // The word under a point on screen, for "click a word to read from here".
+    wordAt(x, y) {
+      const w = wordAtPoint(x, y);
+      return w && { node: w.node, offset: w.start };
     },
 
     disable() {

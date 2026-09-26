@@ -17,7 +17,16 @@
     'script,style,noscript,template,textarea,input,select,option,button,pre,code,kbd,samp,svg,math,' +
     'nav,[role="navigation"],[role="button"],[role="menu"],[role="menubar"],[role="toolbar"],' +
     '[role="tablist"],[aria-hidden="true"],reading-pencil-overlay,reading-pencil-reader';
+  // Page furniture that reading carries on past, unless it started inside it:
+  // sidebars, footers, footnote markers ("[1]"), Wikipedia's "[edit]" links.
+  const FURNITURE =
+    'aside,footer,[role="complementary"],[role="contentinfo"],sup > a[href^="#"],.mw-editsection';
   const EDITABLE = 'input,textarea,select,[contenteditable=""],[contenteditable="true"]';
+  // Clicking these does something already; a click anywhere else on the text
+  // while reading jumps the voice to that word.
+  const INTERACTIVE =
+    'a,button,input,select,textarea,label,summary,video,audio,[role="button"],[role="link"],' +
+    '[contenteditable=""],[contenteditable="true"],[onclick]';
   const HAS_WORD = /[\p{L}\p{N}]/u;
   const CHARS_PER_SECOND = 14; // pace estimate for voices that don't report words
 
@@ -35,25 +44,28 @@
   let utterId = 0;
   let timers = [];
   let styleEl = null;
+  let followScroll = true; // false once you scroll away while it's reading
+  let lastScrollInput = 0; // when you last used the wheel, touch, keys or scrollbar
+  let lostSight = false; // the word being read has left the screen since you scrolled
 
   // ---- What to read --------------------------------------------------------
 
-  function speakable(text) {
+  function speakable(text, home) {
     const parent = text.parentElement;
-    return (
-      !!parent &&
-      /\S/.test(text.data) &&
-      !parent.closest(SKIP) &&
-      parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
-    );
+    if (!parent || !/\S/.test(text.data) || parent.closest(SKIP)) return false;
+    const furniture = parent.closest(FURNITURE);
+    if (furniture && furniture !== home) return false;
+    return parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
   }
 
   // Runs of text belonging to the same block (paragraph, heading, list
   // item...), in reading order, starting at a given character. Each run keeps
   // where its characters came from so spoken positions map back to the page.
   function* runs(startNode, startOffset) {
+    // Starting inside a sidebar or footer reads on through that one.
+    const home = startNode.parentElement?.closest(FURNITURE) || null;
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-      acceptNode: (n) => (speakable(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP),
+      acceptNode: (n) => (speakable(n, home) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP),
     });
     walker.currentNode = startNode;
     const blocks = new Map();
@@ -72,7 +84,10 @@
       }
       run ||= { block, text: '', pieces: [] };
       run.pieces.push({ node, from, at: run.text.length });
-      run.text += node.data.slice(from);
+      // Line breaks in the page's source aren't sentence ends; turn every
+      // whitespace character into a plain space (one for one, so positions
+      // still line up with the page).
+      run.text += node.data.slice(from).replace(/\s/g, ' ');
       from = 0;
     }
     if (run) yield run;
@@ -130,6 +145,18 @@
     return port;
   }
 
+  // Sends to the speech engine; false if the extension was updated or
+  // reloaded since this page opened (then only a page reload reconnects).
+  function send(msg) {
+    try {
+      connect().postMessage(msg);
+      return true;
+    } catch (_) {
+      port = null;
+      return false;
+    }
+  }
+
   function sentenceAt(i) {
     while (reading.list.length <= i) {
       const next = reading.stream.next();
@@ -145,11 +172,53 @@
   }
 
   // Moves the pencil to character `c` of sentence `s` (or the next word).
+  // The page scrolls along unless you've scrolled away to look at something;
+  // it picks up again once the word being read is back on screen.
   function follow(s, c) {
     while (c < s.text.length && /\s/.test(s.text[c])) c++;
     reading.lastChar = c;
     const { node, offset } = locate(s.run, s.start + c);
-    RP.pencil?.follow(node, offset);
+    const { visible } = RP.pencil?.follow(node, offset, { scroll: followScroll }) || {};
+    if (followScroll) return;
+    if (!visible) lostSight = true;
+    else if (lostSight) {
+      followScroll = true; // you've scrolled back to it
+      renderPlayer();
+    }
+  }
+
+  // A scroll counts as yours (and the page stops following the voice) only
+  // right after you've used the wheel, touch, scrolling keys or the scrollbar;
+  // the pencil's own scrolling never does.
+  function onScroll() {
+    if (pendingRange) hideButton();
+    if (reading && followScroll && Date.now() - lastScrollInput < 1000) {
+      followScroll = false;
+      lostSight = false;
+      renderPlayer();
+    }
+  }
+
+  const SCROLL_KEYS = new Set(['PageUp', 'PageDown', 'Home', 'End', ' ', 'ArrowUp', 'ArrowDown']);
+  function onScrollInput(e) {
+    if (e.type === 'keydown' && (!SCROLL_KEYS.has(e.key) || e.altKey || typing())) return;
+    // A mouse press counts only on the page's scrollbar.
+    if (
+      e.type === 'mousedown' &&
+      !(e.target === document.documentElement && e.clientX >= document.documentElement.clientWidth)
+    )
+      return;
+    lastScrollInput = Date.now();
+  }
+
+  function backToReading() {
+    followScroll = true;
+    const s = reading && reading.list[reading.index];
+    if (!s) return;
+    const { node, offset } = locate(s.run, s.start + reading.lastChar);
+    node.parentElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    RP.pencil?.follow(node, offset, { scroll: false });
+    renderPlayer();
   }
 
   function tint(s) {
@@ -211,7 +280,7 @@
     spokenWith = { rate: settings.speechRate, voice: settings.voiceName };
     tint(s);
     follow(s, from);
-    connect().postMessage({
+    const sent = send({
       type: 'speak',
       id,
       text: s.text.slice(from),
@@ -219,6 +288,7 @@
       voiceName: settings.voiceName,
       lang: document.documentElement.lang || '',
     });
+    if (!sent) return pause('Reading Pencil was updated. Reload the page to keep reading.');
     estimate(s, from, id);
     renderPlayer();
   }
@@ -248,12 +318,13 @@
     }
   }
 
-  function start(range) {
-    const at = startOf(range);
+  // Starts reading at a page position ({ node, offset } in a text node).
+  function start(at) {
     if (!at) return;
     stop();
     getSelection().removeAllRanges();
     hideButton();
+    followScroll = true;
     reading = { stream: sentences(at.node, at.offset), list: [], index: 0, playing: false, lastChar: 0 };
     RP.pencil?.setSpeaking(true);
     play(0);
@@ -265,7 +336,7 @@
     reading.playing = false;
     reading.message = message || '';
     clearTimers();
-    port?.postMessage({ type: 'stop' });
+    if (port) send({ type: 'stop' });
     renderPlayer();
   }
 
@@ -281,7 +352,7 @@
   function stop() {
     utterId++;
     clearTimers();
-    if (reading) port?.postMessage({ type: 'stop' });
+    if (reading && port) send({ type: 'stop' });
     reading = null;
     untint();
     RP.pencil?.setSpeaking(false);
@@ -301,6 +372,10 @@
     stop:
       '<path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" ' +
       'stroke-linecap="round"/>',
+    locate:
+      '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4" fill="none" ' +
+      'stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+      '<circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/>',
   };
   const icon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 
@@ -344,17 +419,23 @@
         .msg { color: #c0392b; margin-left: 4px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
         .msg:empty { display: none; }
         .sep { width: 1px; height: 22px; background: var(--line); }
+        .player .locate { width: auto; padding: 0 10px 0 8px; gap: 6px; display: none; border-radius: 999px;
+          color: var(--accent); font-weight: 600; }
+        .player .locate.on { display: flex; align-items: center; }
+        .player .locate svg { width: 16px; height: 16px; }
+        @media (max-width: 560px) { .speed span { display: none; } .speed input { width: 70px; } }
       </style>
-      <button class="speak" title="Read aloud from here" aria-label="Read aloud from here">${icon('speaker')}</button>
+      <button class="speak" title="Read aloud from here (Alt+S)" aria-label="Read aloud from here">${icon('speaker')}</button>
       <div class="player" role="toolbar" aria-label="Read aloud">
-        <button class="prev" title="Previous sentence" aria-label="Previous sentence">${icon('prev')}</button>
-        <button class="main" title="Pause" aria-label="Pause">${icon('pause')}</button>
-        <button class="next" title="Next sentence" aria-label="Next sentence">${icon('next')}</button>
-        <label class="speed">Speed
+        <button class="prev" title="Previous sentence (Alt+←)" aria-label="Previous sentence">${icon('prev')}</button>
+        <button class="main" title="Pause (Alt+S)" aria-label="Pause">${icon('pause')}</button>
+        <button class="next" title="Next sentence (Alt+→)" aria-label="Next sentence">${icon('next')}</button>
+        <label class="speed"><span>Speed</span>
           <input type="range" min="50" max="200" step="5" aria-label="Reading speed">
           <output>1.0×</output>
         </label>
-        <span class="msg"></span>
+        <button class="locate" title="Scroll back to the words being read" aria-label="Back to reading">${icon('locate')}Back to reading</button>
+        <span class="msg" role="status"></span>
         <span class="sep"></span>
         <button class="stop" title="Stop reading (Esc)" aria-label="Stop reading">${icon('stop')}</button>
       </div>`;
@@ -366,10 +447,12 @@
       rate: $('.speed input'),
       rateLabel: $('.speed output'),
       msg: $('.msg'),
+      locate: $('.locate'),
     };
     // Keep the page's selection when the button is pressed.
     ui.speak.addEventListener('mousedown', (e) => e.preventDefault());
-    ui.speak.addEventListener('click', () => pendingRange && start(pendingRange));
+    ui.speak.addEventListener('click', () => pendingRange && start(startOf(pendingRange)));
+    ui.locate.addEventListener('click', backToReading);
     $('.prev').addEventListener('click', () => skip(-1));
     $('.next').addEventListener('click', () => skip(1));
     $('.stop').addEventListener('click', stop);
@@ -399,8 +482,9 @@
     ui.player.classList.add('on');
     const playing = reading.playing;
     ui.main.innerHTML = icon(playing ? 'pause' : 'play');
-    ui.main.title = playing ? 'Pause' : 'Resume';
-    ui.main.setAttribute('aria-label', ui.main.title);
+    ui.main.title = playing ? 'Pause (Alt+S)' : 'Resume (Alt+S)';
+    ui.main.setAttribute('aria-label', playing ? 'Pause' : 'Resume');
+    ui.locate.classList.toggle('on', !followScroll);
     ui.rate.value = Math.round(settings.speechRate * 100);
     ui.rateLabel.textContent = rateText(settings.speechRate);
     ui.msg.textContent = playing ? '' : reading.message || '';
@@ -428,8 +512,17 @@
     const last = rects[rects.length - 1] || range.getBoundingClientRect();
     pendingRange = range.cloneRange();
     ensureUI();
-    ui.speak.style.left = `${Math.min(Math.max(4, last.right + 6), innerWidth - 40)}px`;
-    ui.speak.style.top = `${Math.min(Math.max(4, last.bottom + 4), innerHeight - 40)}px`;
+    // In the margin beside the last selected line, so it covers no words;
+    // just below the end of the selection when there's no margin.
+    const block = (RP.blockOf?.(el) || el).getBoundingClientRect();
+    let x = Math.max(block.right, last.right) + 10;
+    let y = last.top + last.height / 2 - 17;
+    if (x + 40 > innerWidth) {
+      x = last.right + 6;
+      y = last.bottom + 4;
+    }
+    ui.speak.style.left = `${Math.min(Math.max(4, x), innerWidth - 40)}px`;
+    ui.speak.style.top = `${Math.min(Math.max(4, y), innerHeight - 40)}px`;
     ui.speak.classList.add('on');
   }
 
@@ -442,14 +535,52 @@
     if (pendingRange && getSelection().isCollapsed) hideButton();
   }
 
+  function typing() {
+    const el = document.activeElement;
+    return !!el && (el.isContentEditable || !!el.closest?.(EDITABLE));
+  }
+
+  // Esc stops. Alt+S reads the selection (or from the pencil), and pauses or
+  // resumes once reading. While reading, Alt+← / Alt+→ skip by sentence.
   function onKeyDown(e) {
-    if (e.key === 'Escape' && reading) stop();
+    if (e.key === 'Escape' && reading) return stop();
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || typing()) return;
+    // e.code, since Option+S types "ß" on a Mac.
+    if (e.code === 'KeyS') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (reading) return reading.playing ? pause() : resume();
+      const sel = getSelection();
+      if (sel.rangeCount && !sel.isCollapsed && HAS_WORD.test(sel.toString())) {
+        return start(startOf(sel.getRangeAt(0)));
+      }
+      return start(RP.pencil?.position());
+    }
+    if (reading && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault(); // also keeps Alt+← from going back a page
+      e.stopPropagation();
+      skip(e.key === 'ArrowRight' ? 1 : -1);
+    }
+  }
+
+  // While reading, click any word to have the voice jump there.
+  function onClick(e) {
+    if (!reading || e.button !== 0 || e.defaultPrevented) return;
+    if (host && e.composedPath().includes(host)) return;
+    if (!getSelection().isCollapsed || e.target.closest?.(INTERACTIVE)) return;
+    const at = RP.pencil?.wordAt(e.clientX, e.clientY);
+    if (at) start(at);
   }
 
   const listeners = [
     [document, 'mouseup', onMouseUp, { capture: true }],
+    [document, 'click', onClick, { capture: true }],
     [document, 'selectionchange', onSelectionChange, {}],
-    [document, 'scroll', () => pendingRange && hideButton(), { passive: true, capture: true }],
+    [document, 'scroll', onScroll, { passive: true, capture: true }],
+    [window, 'wheel', onScrollInput, { passive: true, capture: true }],
+    [window, 'touchmove', onScrollInput, { passive: true, capture: true }],
+    [window, 'keydown', onScrollInput, { passive: true, capture: true }],
+    [window, 'mousedown', onScrollInput, { passive: true, capture: true }],
     [window, 'keydown', onKeyDown, { capture: true }],
   ];
 
@@ -468,7 +599,10 @@
       const changed =
         spokenWith && (spokenWith.rate !== settings.speechRate || spokenWith.voice !== settings.voiceName);
       if (reading?.playing && changed) play(reading.index, reading.lastChar);
-      else renderPlayer();
+      else {
+        if (reading?.list[reading.index]) tint(reading.list[reading.index]); // new highlight color
+        renderPlayer();
+      }
     },
 
     disable() {

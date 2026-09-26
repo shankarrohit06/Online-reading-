@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en" data-rp-always-on>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reading Pencil guide</title>
+    <link rel="icon" href="../../icons/icon32.png" />
+    <link rel="stylesheet" href="../content/content.css" />
+    <link rel="stylesheet" href="welcome.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="hero">
+        <img src="../../icons/icon128.png" alt="" width="72" height="72" />
+        <div>
+          <h1>Reading Pencil</h1>
+          <p>
+            Read online the way you read on paper: lines under the text, a pencil on the word you're on, and a
+            voice that reads along with you.
+          </p>
+        </div>
+      </header>
+
+      <section aria-labelledby="startHead">
+        <h2 id="startHead">Get started</h2>
+        <ol class="steps">
+          <li>
+            <p>
+              <strong>Pin it.</strong> Click the puzzle-piece icon at the top right of Chrome, then the pin
+              next to Reading Pencil, so its icon is always in the toolbar.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Switch it on for a site.</strong> Open an article and press
+              <kbd id="toggleKey">Alt+R</kbd> or click the icon. Each site remembers its setting.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Follow along.</strong> Point at a word and it grows a little. <kbd>Alt</kbd>+<kbd
+                >←</kbd
+              >
+              <kbd>→</kbd> moves word by word, <kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>↓</kbd> line by line.
+            </p>
+          </li>
+          <li>
+            <p>
+              <strong>Listen.</strong> Select some text and click the speaker, or press
+              <kbd>Alt</kbd>+<kbd>S</kbd>. While it reads, click any word to jump there. <kbd>Esc</kbd> stops.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="practiceHead">
+        <div class="section-head">
+          <h2 id="practiceHead">Practice here</h2>
+          <p>
+            Reading Pencil is always on for this page. Try the pencil, the keys and read aloud on the article
+            below.
+          </p>
+        </div>
+        <article class="practice" data-rp-scope>
+          <h3>Why a pencil helps you read</h3>
+          <p>
+            When you read a printed page, you can run a pencil under each line and keep your place one word at
+            a time. Your eyes stop drifting, and long paragraphs become far easier to follow from start to
+            finish.
+          </p>
+          <p>
+            Screens take that anchor away. Text scrolls, lines stretch across wide windows, and it is easy to
+            skip a line or read the same one twice. Hearing the words while you watch them helps them stick.
+          </p>
+          <p>
+            Select this paragraph and click the speaker that appears beside it. The pencil will move with the
+            voice, and the sentence being read is tinted so you can see what's coming.
+          </p>
+        </article>
+      </section>
+
+      <section aria-labelledby="voicesHead">
+        <div class="section-head">
+          <h2 id="voicesHead">Voices</h2>
+          <p id="voicesIntro">
+            Play a voice to hear it, then choose the one you like.
+            <span class="badge good">Word by word</span>
+            voices keep the pencil exactly on the word being spoken.
+          </p>
+        </div>
+        <div class="voices" id="voices"></div>
+        <details id="othersBox" hidden>
+          <summary id="othersSummary">Other languages</summary>
+          <div class="voices" id="others"></div>
+        </details>
+        <p class="empty" id="noVoices" hidden>
+          Chrome found no voices. On Windows and macOS they come from your system's speech settings; on
+          ChromeOS and Linux, Chrome's own Google voices appear when you're online.
+        </p>
+      </section>
+
+      <footer class="foot">
+        <a href="#" id="shortcuts">Change keyboard shortcuts</a>
+        <span>Settings are in the toolbar popup and sync across your Chrome profile.</span>
+      </footer>
+    </main>
+
+    <script src="../shared/settings.js"></script>
+    <script src="../content/ruler.js"></script>
+    <script src="../content/pencil.js"></script>
+    <script src="../content/reader.js"></script>
+    <script src="../content/main.js"></script>
+    <script src="welcome.js"></script>
+  </body>
+</html>

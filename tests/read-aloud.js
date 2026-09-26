@@ -61,7 +61,7 @@ const state = (page) =>
     return {
       button: !!reader?.querySelector('.speak.on'),
       player: !!reader?.querySelector('.player.on'),
-      playing: reader?.querySelector('.main')?.title === 'Pause',
+      playing: reader?.querySelector('.main')?.getAttribute('aria-label') === 'Pause',
       word: pencil?.classList.contains('on') ? pencil.textContent : null,
       tinted: tint ? [...tint].map((r) => r.toString()).join('') : '',
     };
@@ -218,6 +218,25 @@ async function select(page, id, from, to) {
       assert.ok(!texts.some((t) => t.includes('Home') && t.includes('Articles')), 'skipped the menu');
     });
 
+    await check('skips footnote markers, sidebars and footers', async () => {
+      await page.waitForFunction(() => !document.querySelector('reading-pencil-reader'), null, {
+        timeout: 15000,
+      });
+      const texts = (await spoken()).map((s) => s.text.replace(/\s+/g, ' ')).join(' | ');
+      assert.ok(texts.includes('The last paragraph'), 'read to the end of the article');
+      assert.ok(!texts.includes('[1]'), 'no footnote marker');
+      assert.ok(!texts.includes('sidebar'), 'no sidebar');
+      assert.ok(!texts.includes('Footer'), 'no footer');
+      // The test page wraps paragraphs across lines in its source; those line
+      // breaks must not split sentences.
+      assert.ok(
+        texts.includes(
+          'Reading online is harder because nothing marks where you are, so your eyes drift between lines and you lose your place in long paragraphs.',
+        ),
+        'whole sentences',
+      );
+    });
+
     await check('voices without word events still move the pencil', async () => {
       await page.keyboard.press('Escape');
       await sw.evaluate(() => Object.assign(self.fake, { words: false, msPerWord: 400 }));
@@ -241,6 +260,78 @@ async function select(page, id, from, to) {
       assert.equal(await page.locator('reading-pencil-reader').count(), 0);
     });
 
+    await check('Alt+S reads the selection, then pauses and resumes', async () => {
+      await sw.evaluate(() => Object.assign(self.fake, { words: true, msPerWord: 150 }));
+      await select(page, 'p2', 'This', 'link');
+      await page.keyboard.press('Alt+KeyS');
+      await page.waitForTimeout(60);
+      assert.match((await spoken()).at(-1).text, /^This page has a link/);
+      assert.equal((await state(page)).playing, true);
+      await page.keyboard.press('Alt+KeyS');
+      await page.waitForTimeout(60);
+      assert.equal((await state(page)).playing, false, 'paused');
+      await page.keyboard.press('Alt+KeyS');
+      await page.waitForTimeout(60);
+      assert.equal((await state(page)).playing, true, 'resumed');
+    });
+
+    await check('Alt+→ skips to the next sentence while reading', async () => {
+      await page.keyboard.press('Alt+ArrowRight');
+      await page.waitForTimeout(100);
+      assert.match((await spoken()).at(-1).text, /^A box with its own text/);
+      assert.equal(page.url(), url);
+    });
+
+    await check('clicking a word while reading jumps there', async () => {
+      const box = await page.evaluate(() => {
+        const n = document.getElementById('p4').firstChild;
+        const r = document.createRange();
+        r.setStart(n, 0);
+        r.setEnd(n, 5);
+        const b = r.getBoundingClientRect();
+        return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+      });
+      await page.mouse.click(box.x, box.y);
+      await page.waitForTimeout(60);
+      assert.match((await spoken()).at(-1).text, /^Tight spots/);
+      assert.equal((await state(page)).word, 'Tight');
+    });
+
+    await check('scrolling away stops the page following, and "Back to reading" returns', async () => {
+      await page.mouse.move(450, 300);
+      assert.ok((await page.evaluate(() => scrollY)) > 50, 'reading has scrolled the page down');
+      await page.mouse.wheel(0, -2000); // you scroll back up to look at something
+      await page.waitForTimeout(300);
+      assert.equal(await page.locator('.locate.on').count(), 1, 'button shown');
+      const y = await page.evaluate(() => scrollY);
+      await page.waitForTimeout(700); // a few more words are read
+      assert.equal(await page.evaluate(() => scrollY), y, 'page stays where you scrolled');
+      await page.locator('.locate').click();
+      await page.waitForTimeout(700);
+      assert.equal(await page.locator('.locate.on').count(), 0, 'following again');
+      assert.ok((await page.evaluate(() => scrollY)) > y, 'scrolled back to the reading');
+    });
+
+    await check('Alt+S with nothing selected reads from the pencil', async () => {
+      await page.keyboard.press('Escape');
+      await page.evaluate(() => scrollTo(0, 0));
+      const c = await page.evaluate(() => {
+        const n = document.querySelector('li:nth-of-type(2)').firstChild;
+        const r = document.createRange();
+        r.setStart(n, 0);
+        r.setEnd(n, 6);
+        const b = r.getBoundingClientRect();
+        return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+      });
+      await page.mouse.move(c.x - 20, c.y);
+      await page.mouse.move(c.x, c.y, { steps: 3 });
+      await page.waitForTimeout(100);
+      await page.keyboard.press('Alt+KeyS');
+      await page.waitForTimeout(60);
+      assert.match((await spoken()).at(-1).text, /^Second list item/);
+      await page.keyboard.press('Escape');
+    });
+
     await check('no speaker button for text being typed', async () => {
       await page.click('#ta', { clickCount: 3 });
       await page.waitForTimeout(100);
@@ -261,6 +352,9 @@ async function select(page, id, from, to) {
       await page.evaluate(() => {
         getSelection().removeAllRanges();
         document.activeElement?.blur();
+      });
+      await page.waitForFunction(() => !document.querySelector('reading-pencil-toast'), null, {
+        timeout: 4000,
       });
       assert.equal(await page.evaluate(() => document.documentElement.outerHTML), pristine);
     });

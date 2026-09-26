@@ -4,24 +4,58 @@
     <meta charset="utf-8" />
     <title>Reading Pencil test page</title>
     <style>
-      body { font: 18px/1.5 Georgia, serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #222; background: #fff; }
-      nav a { margin-right: 12px; }
-      .note { background: #f3f6fa; padding: 12px; }
+      body {
+        font:
+          18px/1.5 Georgia,
+          serif;
+        max-width: 640px;
+        margin: 40px auto;
+        padding: 0 16px;
+        color: #222;
+        background: #fff;
+      }
+      nav a {
+        margin-right: 12px;
+      }
+      .note {
+        background: #f3f6fa;
+        padding: 12px;
+      }
     </style>
   </head>
   <body>
     <nav><a href="#">Home</a><a href="#">Articles</a><a href="#">About</a></nav>
     <h1>Reading with a pencil</h1>
-    <p id="p1">When you read on paper you can follow along with a pencil, keeping your place one word at a time. Reading online is harder because nothing marks where you are, so your eyes drift between lines and you lose your place in long paragraphs.</p>
-    <p id="p2">This page has <a href="#">a link</a>, some <em>emphasis</em>, and <strong>bold text</strong> mixed into an ordinary paragraph so the ruled lines have to cope with inline elements.</p>
-    <div class="note" id="mixed">A box with its own text.<p id="inner">And a paragraph inside it that should get the lines instead of its parent.</p></div>
+    <p id="p1">
+      When you read on paper you can follow along with a pencil, keeping your place one word at a time.<sup
+        ><a href="#n1">[1]</a></sup
+      >
+      Reading online is harder because nothing marks where you are, so your eyes drift between lines and you
+      lose your place in long paragraphs.
+    </p>
+    <p id="p2">
+      This page has <a href="#">a link</a>, some <em>emphasis</em>, and <strong>bold text</strong> mixed into
+      an ordinary paragraph so the ruled lines have to cope with inline elements.
+    </p>
+    <div class="note" id="mixed">
+      A box with its own text.
+      <p id="inner">And a paragraph inside it that should get the lines instead of its parent.</p>
+    </div>
     <ul>
       <li>First list item with a few words.</li>
       <li>Second list item.</li>
     </ul>
     <pre><code>const skipped = "code is left alone";</code></pre>
     <textarea id="ta">Text you are typing is left alone too.</textarea>
-    <p id="p4">Tight spots: (parenthesised words), “quoted text”, well-known phrases, e.g. abbreviations, 3.14 numbers, <code>inline code</code>, and incomprehensibilities too!</p>
-    <p id="p3">The last paragraph is long enough to wrap onto a second and even a third line at this width, which lets the test move the pencil down a line with the keyboard and check that it lands on the right word.</p>
+    <p id="p4">
+      Tight spots: (parenthesised words), “quoted text”, well-known phrases, e.g. abbreviations, 3.14 numbers,
+      <code>inline code</code>, and incomprehensibilities too!
+    </p>
+    <p id="p3">
+      The last paragraph is long enough to wrap onto a second and even a third line at this width, which lets
+      the test move the pencil down a line with the keyboard and check that it lands on the right word.
+    </p>
+    <aside id="side"><p>Related reading: a sidebar the voice should skip.</p></aside>
+    <footer id="foot"><p>Copyright 2026 Test Page. Footer text the voice should skip.</p></footer>
   </body>
 </html>

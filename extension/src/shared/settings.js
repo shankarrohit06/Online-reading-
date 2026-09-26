@@ -47,11 +47,12 @@
   }
 
   // The key a page's on/off state is remembered under, or null if the
-  // extension can't run there (chrome://, the Web Store, ...).
+  // extension can't run there (chrome://, the Web Store, ...). "www." is
+  // dropped so www.example.com and example.com count as one site.
   function hostKey(url) {
     try {
       const u = new URL(url);
-      if (u.protocol === 'http:' || u.protocol === 'https:') return u.hostname;
+      if (u.protocol === 'http:' || u.protocol === 'https:') return u.hostname.replace(/^www\./, '');
       if (u.protocol === 'file:') return 'file://';
     } catch (_) {
       // not a URL
@@ -84,12 +85,29 @@
     await chrome.storage.sync.set({ ...DEFAULTS, enabledSites });
   }
 
+  // Friendly name for a site key, for messages and the popup.
+  function siteName(host) {
+    return host === 'file://' ? 'local files' : host;
+  }
+
+  // Sites saved before "www." was dropped from site keys.
+  async function migrate() {
+    const { enabledSites = {} } = await chrome.storage.sync.get('enabledSites');
+    const keys = Object.keys(enabledSites);
+    if (!keys.some((k) => k.startsWith('www.'))) return;
+    const next = {};
+    for (const k of keys) next[k.replace(/^www\./, '')] = true;
+    await chrome.storage.sync.set({ enabledSites: next });
+  }
+
   root.RPSettings = {
     DEFAULTS,
     FONTS,
     PENCIL_PAD_EM,
     wordRoom,
     hostKey,
+    siteName,
+    migrate,
     load,
     setSiteEnabled,
     toggleSite,
